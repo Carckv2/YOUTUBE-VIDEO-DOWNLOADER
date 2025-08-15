@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MyTube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0f1117;--card:#161a23;--muted:#9aa4b2;--text:#e6e8ee;--accent:#67b0ff}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui}
+  .wrap{max-width:1200px;margin:0 auto;padding:20px}
+  header{display:flex;gap:12px;align-items:center}
+  input{flex:1;padding:12px;border-radius:12px;border:1px solid #283247;background:#0c0f16;color:var(--text)}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));margin-top:16px}
+  .card{background:var(--card);border-radius:16px;overflow:hidden;border:1px solid #283247;cursor:pointer}
+  .thumb{position:relative}
+  .dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:6px;font-size:12px}
+  .meta{padding:10px} .title{font-weight:600;line-height:1.2} .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:20px}
+  .sheet{background:#0c0f16;border:1px solid #283247;border-radius:16px;max-width:900px;width:100%}
+  .sheet .head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #283247}
+  .sheet .body{padding:16px}
+  .actions a{display:inline-block;margin-right:8px;padding:8px 10px;border-radius:10px;border:1px solid #283247;color:#b9d7ff;text-decoration:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h2 style="margin:0">MyTube</h2>
+      <input id="q" placeholder="Search YouTube…" />
+    </header>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <div id="modal" class="modal" onclick="if(event.target===this) closeModal()">
+    <div class="sheet">
+      <div class="head">
+        <div id="m-title" style="font-weight:600"></div>
+        <button onclick="closeModal()" style="background:none;border:none;color:#fff;font-size:20px">✕</button>
+      </div>
+      <div class="body">
+        <div style="position:relative; padding-top:56.25%">
+          <iframe id="player" style="position:absolute;left:0;top:0;width:100%;height:100%" frameborder="0" allowfullscreen></iframe>
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <a id="dl-mp4" target="_blank">⬇ MP4</a>
+          <a id="dl-mp3" target="_blank">🎵 MP3</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_BASE = "http://localhost:8000"; // change to your deployed backend URL
+const grid = document.getElementById("grid");
+const q = document.getElementById("q");
+let timer;
+
+function fmtDur(s){ if(!s) return ""; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  return (h?h+":":"") + String(m).padStart(2,h?2:1,"0") + ":" + String(sec).padStart(2,"0"); }
+
+async function loadHome(){
+  grid.innerHTML = "";
+  const r = await fetch(API_BASE + "/api/home"); const data = await r.json();
+  renderGrid(data);
+}
+async function doSearch(term){
+  const r = await fetch(API_BASE + "/api/search?q=" + encodeURIComponent(term));
+  const data = await r.json(); renderGrid(data);
+}
+function renderGrid(list){
+  grid.innerHTML = "";
+  for(const v of list){
+    const card = document.createElement("div"); card.className="card";
+    card.innerHTML = `
+      <div class="thumb">
+        <img src="${v.thumb||""}" style="width:100%;display:block">
+        <div class="dur">${fmtDur(v.duration)}</div>
+      </div>
+      <div class="meta">
+        <div class="title">${v.title||""}</div>
+        <div class="sub">${v.channel||""}</div>
+      </div>`;
+    card.onclick = ()=> openWatch(v.id, v.title);
+    grid.appendChild(card);
+  }
+}
+async function openWatch(id, title){
+  document.getElementById("m-title").textContent = title||"";
+  const pl = document.getElementById("player");
+  pl.src = "https://www.youtube.com/embed/" + id + "?rel=0&autoplay=1";
+  document.getElementById("dl-mp4").href = API_BASE + "/api/download?id="+id+"&kind=mp4";
+  document.getElementById("dl-mp3").href = API_BASE + "/api/download?id="+id+"&kind=mp3";
+  document.getElementById("modal").style.display = "flex";
+}
+function closeModal(){
+  const m = document.getElementById("modal"); const pl = document.getElementById("player");
+  pl.src = ""; m.style.display = "none";
+}
+q.addEventListener("input", ()=>{
+  clearTimeout(timer);
+  const term = q.value.trim();
+  timer = setTimeout(()=> term ? doSearch(term) : loadHome(), 450);
+});
+loadHome();
+</script>
+</body></html>
